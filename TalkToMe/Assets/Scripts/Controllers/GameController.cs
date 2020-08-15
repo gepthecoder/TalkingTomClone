@@ -4,37 +4,188 @@ using UnityEngine;
 
 enum PlayerState { Idle=0,
                         Listening,
-                                Talking, }
+                                Talking,
+                                    Walking,
+                                            Chilling,
+                                                    Returning, }
 
 
 [RequireComponent(typeof(AudioSource))]
 public class GameController : MonoBehaviour
 {
+    #region Singleton
+    private static GameController instance;
+    public static GameController Instance
+    {
+        get
+        {
+            if (instance == null) { instance = FindObjectOfType(typeof(GameController)) as GameController; }
+            return instance;
+        }
+        set { instance = value; }
+    }
+    #endregion
+
+    [Range(0, 10)] [SerializeField] private float rotationSpeed = 3f;
+    [Range(0, 10)] [SerializeField] private float movementSpeed = .2f;
+
+    [SerializeField] private Transform sitDownPos;
+    [SerializeField] private Transform defaultPos;
+
+    private GameObject PLAYER;
+
     private Animator _anime;
     private PlayerState _state = PlayerState.Idle;
     private AudioSource _aSource;
 
+    private VoiceRecognition voiceRecognito;
+
     private float[] _clipsData;
+
+    void Awake()
+    {
+        instance = this;
+    }
 
     void Start()
     {
-        var player = GameObject.FindGameObjectWithTag(GameConstants.playerTag);
-        if(player != null) { _anime = player.GetComponent<Animator>(); }
+        voiceRecognito = GetComponent<VoiceRecognition>();
+
+        PLAYER = GameObject.FindGameObjectWithTag(GameConstants.playerTag);
+        if (PLAYER != null)
+        {
+            _anime = PLAYER.GetComponent<Animator>();
+        }
+
         _aSource = GetComponent<AudioSource>();
         _clipsData = new float[GameConstants.SampleDataLength]; /*1024*/
+
         Idle();
     }
 
     void Update()
     {
+
+        COMMAND_HANDLER();
+
+        if (_state == PlayerState.Walking)
+        {
+            // turn
+            TurnToChair();
+            // move
+            MoveToChair();
+            Walk(true);
+        }
+        
+        if(_state == PlayerState.Chilling)
+        {
+            // face camera
+            TurnToDefault();
+            // sit down
+            Walk(false);
+        }
+
+        if(_state == PlayerState.Returning)
+        {
+            StandUp(false);
+
+            ReturnBackToDefaultPos();
+            _anime.SetBool(GameConstants.AnimeTransition, true);
+
+            if (isPlayerOnDefaultPos())
+            {
+                StandUp(true);
+                _state = PlayerState.Idle;
+                PLAYER.transform.rotation = Quaternion.Slerp(PLAYER.transform.rotation, defaultPos.rotation, 1.5f);
+            }
+        }
+
         /*
          * 1 -> if in IDLE and the VOLUME  is ABOVE THRESOLD
          * we want to switch to LISTEN
-         
          */
-        if(_state == PlayerState.Idle && IsVolumeAboveThreshold())
+        if ((_state == PlayerState.Idle || _state == PlayerState.Chilling) && IsVolumeAboveThreshold())
         {
             SwitchState();
+        }
+    }
+
+    public void TRIGGER_STATE(int state)
+    {
+        switch (state)
+        {
+            case (int)PlayerState.Chilling:
+                _state = PlayerState.Chilling;
+                break;
+
+            default:
+                Debug.Log("Assertion error");
+                break;
+        }
+    }
+
+    void TurnToChair(/*bool chair*/)
+    {
+        //if (chair)
+        //{
+            Vector3 dir = sitDownPos.position - PLAYER.transform.position;
+            if(dir == Vector3.zero) { return; }
+            Quaternion r = Quaternion.LookRotation(dir);
+            float step = rotationSpeed * Time.deltaTime;
+            PLAYER.transform.rotation = Quaternion.Slerp(PLAYER.transform.rotation, r, step);
+        //}
+        //else
+        //{
+        //    Vector3 dir = defaultPos.position - PLAYER.transform.position;
+        //    if (dir == Vector3.zero) { return; }
+
+        //    Quaternion r = Quaternion.LookRotation(dir);
+        //    float step = rotationSpeed * Time.deltaTime;
+        //    PLAYER.transform.rotation = Quaternion.Slerp(PLAYER.transform.rotation, r, step);
+        //}
+    }
+
+    void TurnToDefault(/*bool chair*/)
+    {
+        Vector3 dir = defaultPos.position - PLAYER.transform.position;
+        Debug.Log("Look rotation: " + dir);
+        if (dir == Vector3.zero) { return; }
+
+        Quaternion r = Quaternion.LookRotation(dir);
+        float step = rotationSpeed * Time.deltaTime;
+        PLAYER.transform.rotation = Quaternion.Slerp(PLAYER.transform.rotation, r, step);
+    }
+
+
+    void MoveToChair()
+    {
+        Vector3 cPos = PLAYER.transform.position;
+        float step = movementSpeed * Time.deltaTime;
+        PLAYER.transform.position = Vector3.MoveTowards(cPos, sitDownPos.position, step);
+    }
+
+    void ReturnBackToDefaultPos()
+    {
+        Vector3 cPos = PLAYER.transform.position;
+        float step = movementSpeed * Time.deltaTime;
+        PLAYER.transform.position = Vector3.MoveTowards(cPos, defaultPos.position, step);
+    }
+
+    private void COMMAND_HANDLER()
+    {
+        if (voiceRecognito.uiText.text.Contains(GameConstants.COMMAND_SIT_DOWN))
+        {
+            /*
+            * ####### SET STATE TO WALKING
+            */
+            _state = PlayerState.Walking;
+        }
+        if (voiceRecognito.uiText.text.Contains(GameConstants.COMMAND_STAND_UP))
+        {
+            /*
+            * ####### SET STATE TO RETURNING
+            */
+            _state = PlayerState.Returning;
         }
     }
     
@@ -49,7 +200,7 @@ public class GameController : MonoBehaviour
             clipLoudness += Mathf.Abs(sample);
         }
         clipLoudness /= GameConstants.SampleDataLength;
-        Debug.Log("Clip loudness: " + clipLoudness);
+        //Debug.Log("Clip loudness: " + clipLoudness);
         // we record 1 sec of audio and we want to analyse and detect the clip loudness is almost finished
 
         return clipLoudness > GameConstants.SoundThreshold; /*0.025f*/
@@ -70,6 +221,9 @@ public class GameController : MonoBehaviour
             case PlayerState.Talking:
                 _state = PlayerState.Idle;
                 Idle();
+                break;
+            case PlayerState.Chilling:
+                _state = PlayerState.Listening;
                 break;
         }
     }
@@ -130,4 +284,24 @@ public class GameController : MonoBehaviour
         }
     }
 
+    private void Walk(bool walk)
+    {
+        if (_anime != null)
+        {
+            _anime.SetBool(GameConstants.AnimeWalk, walk);
+        }
+    }
+
+    private void StandUp(bool isPlayerOnDefaultPos)
+    {
+        if (_anime != null)
+        {
+            _anime.SetBool(GameConstants.AnimeStandUp, !isPlayerOnDefaultPos);
+        }
+    }
+
+    bool isPlayerOnDefaultPos()
+    {
+        return PLAYER.transform.position == defaultPos.position;
+    }
 }

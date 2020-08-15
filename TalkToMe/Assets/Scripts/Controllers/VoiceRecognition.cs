@@ -7,7 +7,7 @@ using UnityEngine.Android;
 
 public class VoiceRecognition : MonoBehaviour
 {
-    [SerializeField] private Text uiText;
+    public Text uiText;
 
     void Start()
     {
