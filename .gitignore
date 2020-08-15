@@ -46,6 +46,8 @@ ExportedObj/
 *.info
 
 TalkToMe/Library/*
+TalkToMe/Temp/*
+TalkToMe/obj/*
 
 # Unity3D generated meta files
 *.pidb.meta
