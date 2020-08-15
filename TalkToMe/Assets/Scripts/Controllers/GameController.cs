@@ -65,7 +65,7 @@ public class GameController : MonoBehaviour
 
     void Update()
     {
-
+        CheckIfHit();
         COMMAND_HANDLER();
 
         if (_state == PlayerState.Walking)
@@ -97,6 +97,7 @@ public class GameController : MonoBehaviour
                 StandUp(true);
                 _state = PlayerState.Idle;
                 PLAYER.transform.rotation = Quaternion.Slerp(PLAYER.transform.rotation, defaultPos.rotation, 1.5f);
+                _anime.SetBool(GameConstants.AnimeTransition, false);
             }
         }
 
@@ -179,6 +180,7 @@ public class GameController : MonoBehaviour
             * ####### SET STATE TO WALKING
             */
             _state = PlayerState.Walking;
+            voiceRecognito.uiText.text = "";
         }
         if (voiceRecognito.uiText.text.Contains(GameConstants.COMMAND_STAND_UP))
         {
@@ -186,6 +188,7 @@ public class GameController : MonoBehaviour
             * ####### SET STATE TO RETURNING
             */
             _state = PlayerState.Returning;
+            voiceRecognito.uiText.text = "";
         }
     }
     
@@ -303,5 +306,27 @@ public class GameController : MonoBehaviour
     bool isPlayerOnDefaultPos()
     {
         return PLAYER.transform.position == defaultPos.position;
+    }
+
+    public void GetPunched()
+    {
+        _anime.SetTrigger(GameConstants.AnimeGetPunched);
+    }
+
+    public void CheckIfHit()
+    {
+        if (Input.GetMouseButtonDown(0) && isPlayerOnDefaultPos())
+        {
+            RaycastHit hit;
+            Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+
+            if (Physics.Raycast(ray, out hit))
+            {
+                if (hit.transform.tag == "Player")
+                {
+                    GetPunched();
+                }
+            }
+        }
     }
 }

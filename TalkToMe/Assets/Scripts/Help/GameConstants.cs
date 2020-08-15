@@ -9,7 +9,14 @@
     public const string AnimeWalk = "Walk";
     public const string AnimeStandUp = "StandUp";
     public const string AnimeSit = "Sit";
+    public const string AnimeGetPunched = "Punch";
     public const string AnimeTransition = "transition";
+
+    // Ads
+    public const string gameID = "3769555"; //android
+    public const string placementID = "banner";
+
+    //
 
 
     public const string MicrophoneDeviceName = null;
