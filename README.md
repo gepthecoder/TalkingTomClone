@@ -1,2 +1,2 @@
 # TalkingTomClone
-Fun interactable mobile game
+Fun interactable tamagochi mobile game
